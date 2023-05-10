@@ -19,7 +19,7 @@ DEFAULT_DEPLOYMENTS_DIR_NAME = "deployments"
 MAX_SQS_MESSAGE_LENGTH = 2**18  # max length of SQS message
 CONFIG_VERSION = 0
 
-WORKFLOW_POLL_INTERVAL = 5  # seconds between state checks
+WORKFLOW_POLL_INTERVAL = 15  # seconds between state checks
 
 
 def deployments_dir_from_project(project):
@@ -284,6 +284,7 @@ class Deployment(DeploymentMeta):
         payload: dict,
         timeout: int = 3600,
         force_rerun: bool = False,
+        poll_interval: int = WORKFLOW_POLL_INTERVAL,
         out_path: str = "",
     ) -> dict:
         """
@@ -311,7 +312,7 @@ class Deployment(DeploymentMeta):
         logger.debug(resp)
 
         state = "PROCESSING"
-        end_time = time() + timeout - WORKFLOW_POLL_INTERVAL
+        end_time = time() + timeout - poll_interval
         while state == "PROCESSING" and time() < end_time:
             sleep(WORKFLOW_POLL_INTERVAL)
             resp = self.get_payload_state(wf_id)
