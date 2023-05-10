@@ -4,7 +4,6 @@ import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from pprint import pprint
 from subprocess import check_call
 from time import sleep, time, time_ns
 import backoff
