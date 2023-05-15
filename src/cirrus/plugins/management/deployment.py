@@ -195,6 +195,18 @@ class Deployment(DeploymentMeta):
             self.save()
 
     def exec(self, command, include_user_vars=True, isolated=False):
+        import os
+
+        if isolated:
+            env = self.environment.copy()
+            if include_user_vars:
+                env.update(self.user_vars)
+            os.execlpe(command[0], *command, env)
+
+        self.set_env(include_user_vars=include_user_vars)
+        os.execlp(command[0], *command)
+
+    def call(self, command, include_user_vars=True, isolated=False):
         if isolated:
             env = self.environment.copy()
             if include_user_vars:
@@ -285,19 +297,19 @@ class Deployment(DeploymentMeta):
         timeout: int = 3600,
         force_rerun: bool = False,
         poll_interval: int = WORKFLOW_POLL_INTERVAL,
-        out_path: str = "",
     ) -> dict:
         """
 
         Args:
             deployment (Deployment): where the workflow will be run.
 
-            payload_path (str): path to payload to pass to the deployment to kick off the workflow.
+            payload (str): payload to pass to the deployment to kick off the workflow.
 
-            timeout (Optional[int]): - upper bound on the number of seconds to poll the deployment before
-                                       considering the test failed.
+            timeout (Optional[int]): - upper bound on the number of seconds to poll the
+                                       deployment before considering the test failed.
 
-            out_path (Optional[str]): - path to write the output or error message to.
+            poll_interval (Optional[int]): - seconds to delay between checks of the
+                                             workflow status.
 
         Returns:
             dict containing output payload or error message
@@ -314,7 +326,7 @@ class Deployment(DeploymentMeta):
         state = "PROCESSING"
         end_time = time() + timeout - poll_interval
         while state == "PROCESSING" and time() < end_time:
-            sleep(WORKFLOW_POLL_INTERVAL)
+            sleep(poll_interval)
             resp = self.get_payload_state(wf_id)
             state = resp["state_updated"].split("_")[0]
             logger.debug({"state": state})
@@ -327,11 +339,6 @@ class Deployment(DeploymentMeta):
             output = {"last_error": "Unkonwn: cirrus-mgmt polling timeout exceeded"}
         else:
             output = {"last_error": resp.get("last_error", "last error not recorded")}
-
-        if out_path:
-            with open(out_path, "w", encoding="utf-8") as ofile:
-                json.dump(output, ofile, indent=2, sort_keys=True)
-                ofile.write("\n")
 
         return output
 

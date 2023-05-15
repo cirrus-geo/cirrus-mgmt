@@ -7,7 +7,7 @@ import click
 from cirrus.cli.utils import click as utils_click
 from click_option_group import RequiredMutuallyExclusiveOptionGroup, optgroup
 
-from cirrus.plugins.management.deployment import Deployment
+from cirrus.plugins.management.deployment import WORKFLOW_POLL_INTERVAL, Deployment
 from cirrus.plugins.management.utils.click import (
     additional_variables,
     silence_templating_errors,
@@ -112,9 +112,6 @@ def refresh(deployment, stackname=None, profile=None):
 
 
 @manage.command("run-workflow")
-@click.argument(
-    "payload-path",
-)
 @click.option(
     "-t",
     "--timeout",
@@ -129,22 +126,24 @@ def refresh(deployment, stackname=None, profile=None):
     help="Force workflow to run",
 )
 @click.option(
-    "-o",
-    "--out-path",
-    type=str,
-    default="",
-    help="Write output payload to the given path",
+    "-p",
+    "--poll-interval",
+    type=int,
+    default=WORKFLOW_POLL_INTERVAL,
+    help="Maximum time (seconds) to allow for the workflow to complete",
 )
 @raw_option
 @pass_deployment
-def run_workflow(deployment, payload_path, timeout, force_rerun, raw, out_path):
-    """Pass a payload off to a deployment, wait for the workflow to finish, retrieve and return its
-    output payload"""
-    with open(payload_path, "r", encoding="utf-8") as infile:
-        payload = json.load(infile)
+def run_workflow(deployment, timeout, force_rerun, raw, poll_interval):
+    """Pass a payload (from stdin) off to a deployment, wait for the workflow to finish,
+    retrieve and return its output payload"""
+    payload = json.load(sys.stdin.read())
 
     output = deployment.run_workflow(
-        payload=payload, timeout=timeout, force_rerun=force_rerun, out_path=out_path
+        payload=payload,
+        timeout=timeout,
+        force_rerun=force_rerun,
+        poll_interval=poll_interval,
     )
     click.echo(json.dump(output, sys.stdout, indent=4 if not raw else None))
 
@@ -281,6 +280,26 @@ def _exec(ctx, deployment, command, include_user_vars):
     if not command:
         return
     deployment.exec(command, include_user_vars=include_user_vars)
+
+
+@manage.command(
+    "call",
+    context_settings={
+        "ignore_unknown_options": True,
+    },
+)
+@click.argument(
+    "command",
+    nargs=-1,
+)
+@include_user_vars
+@pass_deployment
+@click.pass_context
+def _call(ctx, deployment, command, include_user_vars):
+    """Run an executable, in a new process, with the deployment environment vars loaded"""
+    if not command:
+        return
+    deployment.call(command, include_user_vars=include_user_vars)
 
 
 # check-pipeline
