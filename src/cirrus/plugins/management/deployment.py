@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from subprocess import check_call
 from time import sleep, time
-import backoff
 
+import backoff
 from cirrus.lib2.process_payload import ProcessPayload
 
 from . import exceptions
@@ -235,9 +235,7 @@ class Deployment(DeploymentMeta):
             session=self.get_session(),
         )
 
-        @backoff.on_predicate(
-            backoff.expo, lambda x: x is None, max_time=60
-        )
+        @backoff.on_predicate(backoff.expo, lambda x: x is None, max_time=60)
         def _get_payload_item_from_statedb(statedb, payload_id):
             return statedb.get_dbitem(payload_id)
 
