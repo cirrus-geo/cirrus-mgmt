@@ -120,12 +120,6 @@ def refresh(deployment, stackname=None, profile=None):
     help="Maximum time (seconds) to allow for the workflow to complete",
 )
 @click.option(
-    "-f",
-    "--force-rerun",
-    is_flag=True,
-    help="Force workflow to run",
-)
-@click.option(
     "-p",
     "--poll-interval",
     type=int,
@@ -134,7 +128,7 @@ def refresh(deployment, stackname=None, profile=None):
 )
 @raw_option
 @pass_deployment
-def run_workflow(deployment, timeout, force_rerun, raw, poll_interval):
+def run_workflow(deployment, timeout, raw, poll_interval):
     """Pass a payload (from stdin) off to a deployment, wait for the workflow to finish,
     retrieve and return its output payload"""
     payload = json.load(sys.stdin.read())
@@ -142,7 +136,6 @@ def run_workflow(deployment, timeout, force_rerun, raw, poll_interval):
     output = deployment.run_workflow(
         payload=payload,
         timeout=timeout,
-        force_rerun=force_rerun,
         poll_interval=poll_interval,
     )
     click.echo(json.dump(output, sys.stdout, indent=4 if not raw else None))
