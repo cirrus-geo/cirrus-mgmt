@@ -233,6 +233,18 @@ def process(deployment):
     click.echo(json.dumps(deployment.process_payload(sys.stdin), indent=4))
 
 
+@manage.command()
+@click.argument(
+    "lambda-name",
+)
+@pass_deployment
+def invoke_lambda(deployment, lambda_name):
+    """Invoke lambda with event (from stdin)"""
+    click.echo(
+        json.dumps(deployment.invoke_lambda(sys.stdin.read(), lambda_name), indent=4)
+    )
+
+
 @manage.command("template-payload")
 @additional_variables
 @silence_templating_errors
@@ -293,6 +305,18 @@ def _call(ctx, deployment, command, include_user_vars):
     if not command:
         return
     deployment.call(command, include_user_vars=include_user_vars)
+
+
+@manage.command()
+@pass_deployment
+@click.pass_context
+def list_lambdas(ctx, deployment):
+    """List lambda functions"""
+    click.echo(
+        json.dumps(
+            {"Functions": deployment.get_lambda_functions()}, indent=4, default=str
+        )
+    )
 
 
 # check-pipeline

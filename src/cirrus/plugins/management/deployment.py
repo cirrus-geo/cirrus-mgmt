@@ -79,6 +79,7 @@ class Deployment(DeploymentMeta):
         super().__init__(*args, **kwargs)
 
         self._session = None
+        self._functions = None
 
     @classmethod
     def create(cls, name: str, project, stackname: str = None, profile: str = None):
@@ -158,6 +159,16 @@ class Deployment(DeploymentMeta):
             raise
 
         return process_conf["Environment"]["Variables"]
+
+    def get_lambda_functions(self):
+        if self._functions is None:
+            aws_lambda = self.get_session().client("lambda")
+            self._functions = [
+                f["FunctionName"].replace(f"{self.stackname}-", "")
+                for f in aws_lambda.list_functions()["Functions"]
+                if f["FunctionName"].startswith(self.stackname)
+            ]
+        return self._functions
 
     def get_session(self):
         if not self._session:
@@ -290,6 +301,19 @@ class Deployment(DeploymentMeta):
             raise exceptions.NoExecutionsError(payload_id)
 
         return self.get_execution(exec_arn)
+
+    def invoke_lambda(self, event, function_name):
+        aws_lambda = self.get_session().client("lambda")
+        if function_name not in self.get_lambda_functions():
+            raise ValueError(
+                f"lambda named '{function_name}' not found in deployment '{self.name}'"
+            )
+        full_name = f"{self.stackname}-{function_name}"
+        response = aws_lambda.invoke(FunctionName=full_name, Payload=event)
+        if response["StatusCode"] < 200 or response["StatusCode"] > 299:
+            raise RuntimeError(response)
+
+        return json.load(response["Payload"])
 
     def run_workflow(
         self,
