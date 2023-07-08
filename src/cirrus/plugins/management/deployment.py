@@ -163,11 +163,19 @@ class Deployment(DeploymentMeta):
     def get_lambda_functions(self):
         if self._functions is None:
             aws_lambda = self.get_session().client("lambda")
-            self._functions = [
-                f["FunctionName"].replace(f"{self.stackname}-", "")
-                for f in aws_lambda.list_functions()["Functions"]
-                if f["FunctionName"].startswith(self.stackname)
-            ]
+
+            def deployment_functions_filter(response):
+                return [
+                    f["FunctionName"].replace(f"{self.stackname}-", "")
+                    for f in response["Functions"]
+                    if f["FunctionName"].startswith(self.stackname)
+                ]
+
+            resp = aws_lambda.list_functions()
+            self._functions = deployment_functions_filter(resp)
+            while "NextMarker" in resp:
+                resp = aws_lambda.list_functions(Marker=resp["NextMarker"])
+                self._functions += deployment_functions_filter(resp)
         return self._functions
 
     def get_session(self):
