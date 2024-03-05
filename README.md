@@ -2,7 +2,7 @@
 [![coverage-status-image]][codecov]
 [![pypi-version]][pypi]
 
-# cirrus-mgmt
+# cirrus-mgmt 
 
 cirrus-mgmt is a plugin for the [cirrus-geo] processing pipeline framework to
 add deployment management commands to the `cirrus` cli. The commands allow
