@@ -4,7 +4,7 @@ import os.path
 
 from setuptools import find_namespace_packages, setup
 
-from src.cirrus.plugins.management import DESCRIPTION, NAME
+from src.cirrus.management import DESCRIPTION, NAME
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 VERSION = os.environ.get("PLUGIN_VERSION", "0.0.0")
@@ -41,11 +41,7 @@ setup(
     license="Apache-2.0",
     include_package_data=True,
     entry_points="""
-        [cirrus.plugins]
-        {NAME}=cirrus.plugins.management
-        [cirrus.commands]
-        manage=cirrus.plugins.management.commands.manage:manage
-        payload=cirrus.plugins.management.commands.payload:payload
-        deployments=cirrus.plugins.management.commands.deployments:deployments
+        [console_scripts]
+        cirrus-mgmt=cirrus.management.__main__:main
     """,
 )

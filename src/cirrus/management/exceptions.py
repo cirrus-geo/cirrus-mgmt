@@ -1,4 +1,4 @@
-from cirrus.core.exceptions import CirrusError
+from cirrus.exceptions import CirrusError
 
 
 class SSOError(CirrusError):

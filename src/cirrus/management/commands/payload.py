@@ -3,9 +3,9 @@ import logging
 import sys
 
 import click
-from cirrus.cli.utils import click as utils_click
 
-from cirrus.plugins.management.utils.click import (
+from cirrus.management.utils.click import (
+    AliasedShortMatchGroup,
     additional_variables,
     silence_templating_errors,
 )
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 @click.group(
-    cls=utils_click.AliasedShortMatchGroup,
+    cls=AliasedShortMatchGroup,
 )
 def payload():
     """
@@ -25,7 +25,7 @@ def payload():
 
 @payload.command()
 def validate():
-    from cirrus.lib2.process_payload import ProcessPayload
+    from cirrus.lib.process_payload import ProcessPayload
 
     payload = sys.stdin.read()
     ProcessPayload(**json.loads(payload))
@@ -33,7 +33,7 @@ def validate():
 
 @payload.command("get-id")
 def get_id():
-    from cirrus.lib2.process_payload import ProcessPayload
+    from cirrus.lib.process_payload import ProcessPayload
 
     payload = sys.stdin.read()
     click.echo(ProcessPayload(**json.loads(payload), set_id_if_missing=True)["id"])
@@ -43,7 +43,7 @@ def get_id():
 @additional_variables
 @silence_templating_errors
 def template(additional_variables, silence_templating_errors):
-    from cirrus.plugins.management.utils.templating import template_payload
+    from cirrus.management.utils.templating import template_payload
 
     click.echo(
         template_payload(

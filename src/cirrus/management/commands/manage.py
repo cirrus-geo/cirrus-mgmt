@@ -2,18 +2,19 @@ import json
 import logging
 import sys
 from functools import wraps
+from subprocess import CalledProcessError
+from typing import Optional
 
+import boto3
+import botocore.exceptions
 import click
-from cirrus.cli.utils import click as utils_click
 from click_option_group import RequiredMutuallyExclusiveOptionGroup, optgroup
 
-from cirrus.plugins.management.deployment import (
-    WORKFLOW_POLL_INTERVAL,
-    CalledProcessError,
-    Deployment,
-)
-from cirrus.plugins.management.utils.click import (
+from cirrus.management.deployment import WORKFLOW_POLL_INTERVAL, Deployment
+from cirrus.management.utils.click import (
+    AliasedShortMatchGroup,
     additional_variables,
+    pass_session,
     silence_templating_errors,
 )
 
@@ -70,19 +71,19 @@ def include_user_vars(func):
 
 @click.group(
     aliases=["mgmt"],
-    cls=utils_click.AliasedShortMatchGroup,
+    cls=AliasedShortMatchGroup,
 )
-@utils_click.requires_project
 @click.argument(
     "deployment",
     metavar="DEPLOYMENT_NAME",
 )
+@pass_session
 @click.pass_context
-def manage(ctx, project, deployment):
+def manage(ctx, session: boto3.Session, deployment: str, profile: Optional[str] = None):
     """
-    Commands to run management operations against project deployments.
+    Commands to run management operations against a cirrus deployment.
     """
-    ctx.obj = Deployment.from_name(deployment, project)
+    ctx.obj = Deployment.from_name(deployment, session=session)
 
 
 @manage.command()
@@ -91,28 +92,6 @@ def show(deployment):
     """Show a deployment configuration"""
     color = "blue"
     click.secho(deployment.asjson(indent=4), fg=color)
-
-
-@manage.command("get-path")
-@pass_deployment
-def get_path(deployment):
-    """Get path to deployment directory"""
-    click.echo(deployment.path)
-
-
-@manage.command()
-@pass_deployment
-@click.option(
-    "--stackname",
-)
-@click.option(
-    "--profile",
-)
-def refresh(deployment, stackname=None, profile=None):
-    """Refresh the environment values from the AWS deployment,
-    optionally changing the stackname or profile.
-    """
-    deployment.refresh(stackname=stackname, profile=profile)
 
 
 @manage.command("run-workflow")
@@ -153,7 +132,6 @@ def run_workflow(deployment, timeout, raw, poll_interval):
 @pass_deployment
 def get_payload(deployment, payload_id, raw):
     """Get a payload from S3 using its ID"""
-    import botocore
 
     def download(output_fileobj):
         try:

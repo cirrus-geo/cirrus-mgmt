@@ -1,17 +1,23 @@
+from __future__ import annotations
+
 import dataclasses
 import json
 import logging
 import os
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
-from subprocess import CalledProcessError, check_call
+from subprocess import check_call
 from time import sleep, time
+from typing import IO, Any
 
 import backoff
-from cirrus.lib2.process_payload import ProcessPayload
+import boto3
+from cirrus.lib.process_payload import ProcessPayload
+from cirrus.lib.utils import get_client
 
-from . import exceptions
-from .utils.boto3 import get_mfa_session, validate_session
+from cirrus.management import exceptions
+from cirrus.management.deployment_pointer import DeploymentPointer
 
 logger = logging.getLogger(__name__)
 
@@ -22,17 +28,11 @@ CONFIG_VERSION = 0
 WORKFLOW_POLL_INTERVAL = 15  # seconds between state checks
 
 
-def deployments_dir_from_project(project):
-    _dir = project.dot_dir.joinpath(DEFAULT_DEPLOYMENTS_DIR_NAME)
-    _dir.mkdir(exist_ok=True)
-    return _dir
-
-
 def now_isoformat():
     return datetime.now(timezone.utc).isoformat()
 
 
-def _maybe_use_buffer(fileobj):
+def _maybe_use_buffer(fileobj: IO):
     return fileobj.buffer if hasattr(fileobj, "buffer") else fileobj
 
 
@@ -47,122 +47,62 @@ class DeploymentMeta:
     user_vars: dict
     config_version: int
 
-    @classmethod
-    def load(cls, path: Path):
-        config = json.loads(path.read_text())
-        if version := config.get("config_version") != CONFIG_VERSION:
-            raise exceptions.DeploymentConfigurationError(
-                f"Unable to load config version: {version}",
-            )
-        try:
-            return cls(**config)
-        except TypeError as e:
-            raise exceptions.DeploymentConfigurationError(
-                f"Failed to load configuration: {e}",
-            )
+    def save(self, path: Path) -> int:
+        return path.write_text(self.asjson(indent=4))
 
-    def save(self):
-        self.path.write_text(self.asjson(indent=4))
-
-    def asdict(self):
+    def asdict(self) -> dict[str, Any]:
         return dataclasses.asdict(self)
 
-    def asjson(self, *args, **kwargs):
+    def asjson(self, *args, **kwargs) -> str:
         return json.dumps(self.asdict(), *args, **kwargs)
+
+
+#    @staticmethod
+#    def _get_session(profile: str = None):
+#        # TODO: MFA session should likely be used only with the cli,
+#        #   so this probably needs to be parameterized by the caller
+#
+#    def get_session(self):
+#        if not self._session:
+#            self._session = self._get_session(profile=self.profile)
+#        return self._session
 
 
 @dataclasses.dataclass
 class Deployment(DeploymentMeta):
-    def __init__(self, path: Path, *args, **kwargs):
-        self.path = path
-
+    def __init__(
+        self,
+        *args,
+        session: boto3.Session | None = None,
+        **kwargs,
+    ) -> None:
         super().__init__(*args, **kwargs)
-
-        self._session = None
-        self._functions = None
-
-    @classmethod
-    def create(cls, name: str, project, stackname: str = None, profile: str = None):
-        if not stackname:
-            stackname = project.config.get_stackname(name)
-
-        env = cls.get_env_from_lambda(stackname, cls._get_session(profile))
-
-        now = now_isoformat()
-        meta = {
-            "name": name,
-            "created": now,
-            "updated": now,
-            "stackname": stackname,
-            "profile": profile,
-            "environment": env,
-            "user_vars": {},
-            "config_version": CONFIG_VERSION,
-        }
-
-        path = cls.get_path_from_project(project, name)
-        self = cls(path, **meta)
-        self.save()
-
-        return self
-
-    @classmethod
-    def from_file(cls, path: Path):
-        return cls(path, **DeploymentMeta.load(path).asdict())
-
-    @classmethod
-    def from_name(cls, name: str, project):
-        path = cls.get_path_from_project(project, name)
-        try:
-            return cls.from_file(path)
-        except FileNotFoundError:
-            raise exceptions.DeploymentNotFoundError(name) from None
-
-    @classmethod
-    def remove(cls, name: str, project):
-        cls.get_path_from_project(project, name).unlink(missing_ok=True)
+        self.session = session if session else boto3.Session()
+        self._functions: list[str] | None = None
 
     @staticmethod
-    def yield_deployments(project):
-        for f in deployments_dir_from_project(project).glob("*.json"):
-            if f.is_file():
-                try:
-                    yield DeploymentMeta.load(f).name
-                except exceptions.DeploymentConfigurationError:
-                    yield f"{f.stem} (invalid configuration)"
-                except Exception:
-                    logger.exception("failed on %s", f)
-                    pass
+    def yield_deployments(
+        region: str | None = None,
+        session: boto3.Session | None = None,
+    ) -> Iterator[DeploymentPointer]:
+        yield from DeploymentPointer.list(region=region, session=session)
 
-    @staticmethod
-    def get_path_from_project(project, name: str):
-        return deployments_dir_from_project(project).joinpath(f"{name}.json")
+    @classmethod
+    def from_pointer(
+        cls,
+        pointer: DeploymentPointer,
+        session: boto3.Session | None = None,
+    ) -> Deployment:
+        return cls(session=session, **pointer.get_config(session=session))
 
-    @staticmethod
-    def _get_session(profile: str = None):
-        # TODO: MFA session should likely be used only with the cli,
-        #   so this probably needs to be parameterized by the caller
-        # Likely we need a Session class wrapping the boto3 session
-        # object that caches clients. That would be useful in the lib generally.
-        return validate_session(get_mfa_session(profile=profile), profile)
-
-    @staticmethod
-    def get_env_from_lambda(stackname: str, session):
-        aws_lambda = session.client("lambda")
-
-        try:
-            process_conf = aws_lambda.get_function_configuration(
-                FunctionName=f"{stackname}-process",
-            )
-        except aws_lambda.exceptions.ResourceNotFoundException:
-            # TODO: fatal error bad lambda name, needs better handling
-            raise
-
-        return process_conf["Environment"]["Variables"]
+    @classmethod
+    def from_name(cls, name: str, session: boto3.Session | None = None) -> Deployment:
+        dp = DeploymentPointer.get(name, session=session)
+        return cls.from_pointer(dp, session=session)
 
     def get_lambda_functions(self):
         if self._functions is None:
-            aws_lambda = self.get_session().client("lambda")
+            aws_lambda = get_client("lambda")
 
             def deployment_functions_filter(response):
                 return [
@@ -178,40 +118,12 @@ class Deployment(DeploymentMeta):
                 self._functions += deployment_functions_filter(resp)
         return self._functions
 
-    def get_session(self):
-        if not self._session:
-            self._session = self._get_session(profile=self.profile)
-        return self._session
-
-    def reload(self):
-        self.__dict__.update(DeploymentMeta.load(self.path).asdict())
-
-    def refresh(self, stackname: str = None, profile: str = None):
-        self.stackname = stackname if stackname else self.stackname
-        self.profile = profile if profile else self.profile
-        self.environment = self.get_env_from_lambda(self.stackname, self.get_session())
-        self.updated = now_isoformat()
-        self.save()
-
     def set_env(self, include_user_vars=False):
         os.environ.update(self.environment)
         if include_user_vars:
             os.environ.update(self.user_vars)
         if self.profile:
             os.environ["AWS_PROFILE"] = self.profile
-
-    def add_user_vars(self, _vars, save=False):
-        self.user_vars.update(_vars)
-        if save:
-            self.save()
-
-    def del_user_var(self, name, save=False):
-        try:
-            del self.user_vars[name]
-        except KeyError:
-            pass
-        if save:
-            self.save()
 
     def exec(self, command, include_user_vars=True, isolated=False):
         import os
@@ -236,11 +148,11 @@ class Deployment(DeploymentMeta):
             check_call(command)
 
     def get_payload_state(self, payload_id):
-        from cirrus.lib2.statedb import StateDB
+        from cirrus.lib.statedb import StateDB
 
         statedb = StateDB(
             table_name=self.environment["CIRRUS_STATE_DB"],
-            session=self.get_session(),
+            session=self.session,
         )
 
         @backoff.on_predicate(backoff.expo, lambda x: x is None, max_time=60)
@@ -259,7 +171,7 @@ class Deployment(DeploymentMeta):
         if hasattr(payload, "read"):
             stream = _maybe_use_buffer(payload)
             # add two to account for EOF and needing to know
-            # if greater than not just equal tomax length
+            # if greater than not just equal to max length
             payload = payload.read(MAX_SQS_MESSAGE_LENGTH + 2)
 
         if len(payload.encode("utf-8")) > MAX_SQS_MESSAGE_LENGTH:
@@ -271,18 +183,18 @@ class Deployment(DeploymentMeta):
             url = f"s3://{bucket}/{key}"
             logger.warning("Message exceeds SQS max length.")
             logger.warning("Uploading to '%s'", url)
-            s3 = self.get_session().client("s3")
+            s3 = get_client("s3", session=self.session)
             s3.upload_fileobj(stream, bucket, key)
             payload = json.dumps({"url": url})
 
-        sqs = self.get_session().client("sqs")
+        sqs = get_client("sqs", session=self.session)
         return sqs.send_message(
             QueueUrl=self.environment["CIRRUS_PROCESS_QUEUE_URL"],
             MessageBody=payload,
         )
 
     def get_payload_by_id(self, payload_id, output_fileobj):
-        from cirrus.lib2.statedb import StateDB
+        from cirrus.lib.statedb import StateDB
 
         # TODO: error handling
         bucket, key = StateDB.payload_id_to_bucket_key(
@@ -291,12 +203,12 @@ class Deployment(DeploymentMeta):
         )
         logger.debug("bucket: '%s', key: '%s'", bucket, key)
 
-        s3 = self.get_session().client("s3")
+        s3 = get_client("s3", session=self.session)
 
         return s3.download_fileobj(bucket, key, output_fileobj)
 
     def get_execution(self, arn):
-        sfn = self.get_session().client("stepfunctions")
+        sfn = get_client("stepfunctions", session=self.session)
         return sfn.describe_execution(executionArn=arn)
 
     def get_execution_by_payload_id(self, payload_id):
@@ -309,7 +221,7 @@ class Deployment(DeploymentMeta):
         return self.get_execution(exec_arn)
 
     def invoke_lambda(self, event, function_name):
-        aws_lambda = self.get_session().client("lambda")
+        aws_lambda = get_client("lambda", session=self.session)
         if function_name not in self.get_lambda_functions():
             raise ValueError(
                 f"lambda named '{function_name}' not found in deployment '{self.name}'"
@@ -326,7 +238,7 @@ class Deployment(DeploymentMeta):
         payload: dict,
         timeout: int = 3600,
         poll_interval: int = WORKFLOW_POLL_INTERVAL,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
 
         Args:
@@ -372,7 +284,7 @@ class Deployment(DeploymentMeta):
     def template_payload(
         self,
         payload: str,
-        additional_vars: dict = None,
+        additional_vars: dict[str, str] | None = None,
         silence_templating_errors: bool = False,
         include_user_vars: bool = True,
     ):
@@ -383,5 +295,8 @@ class Deployment(DeploymentMeta):
             _vars.update(self.user_vars)
 
         return template_payload(
-            payload, _vars, silence_templating_errors, **dict(additional_vars)
+            payload,
+            _vars,
+            silence_templating_errors,
+            **(additional_vars or {}),
         )
