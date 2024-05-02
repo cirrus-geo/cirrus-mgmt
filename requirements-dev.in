@@ -2,8 +2,9 @@
 darglint
 pytest
 pytest-cov
-moto
+moto<5.0
 mypy
 pip-tools
 pre-commit
 pre-commit-hooks
+ruff
