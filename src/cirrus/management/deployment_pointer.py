@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import json
 import re
+
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any
+from enum import StrEnum, auto
+from typing import Any, Protocol, Self
 
 import boto3
+
 from cirrus.lib.utils import get_client
 
 DEFAULT_CIRRUS_DEPLOYMENT_PREFIX = "/cirrus/deployments/"
@@ -24,7 +27,21 @@ def get_secret(
     return resp["SecretString"]
 
 
-@dataclass
+class PointerObject(Protocol):  # pragma: no cover
+    account_id: str
+    region: str
+
+    @classmethod
+    def from_string(cls: type[Self], string: str) -> Self:
+        ...
+
+    def fetch(
+        self: Self,
+        session: boto3.Session | None = None,
+    ) -> str:
+        ...
+
+
 class SecretArn:
     _format = "arn:aws:secretsmanager:{region}:{account_id}:secret:{name}".format
     _regex = re.compile(
@@ -33,8 +50,8 @@ class SecretArn:
 
     def __init__(self, account_id: str, region: str, name: str) -> None:
         self.account_id = account_id
-        self.name = name
         self.region = region
+        self.name = name
 
     def __str__(self) -> str:
         return self._format(
@@ -44,7 +61,7 @@ class SecretArn:
         )
 
     @classmethod
-    def from_string(cls, string: str) -> SecretArn:
+    def from_string(cls, string: str) -> Self:
         match = cls._regex.match(string)
 
         if not match:
@@ -69,20 +86,45 @@ class SecretArn:
         )
 
 
+class PointerType(StrEnum):
+    SECRET = auto()
+
+
+@dataclass()
+class Pointer:
+    _type: PointerType
+    value: str
+
+    @classmethod
+    def from_string(cls: type[Self], string: str) -> Self:
+        obj = json.loads(string)
+        obj['_type'] = obj.pop('type')
+        return cls(**obj)
+
+    def resolve(self) -> PointerObject:
+        match self._type:
+            case PointerType.SECRET:
+                return SecretArn.from_string(self.value)
+            case _ as unknown:
+                raise TypeError(f"Unsupported pointer type '{unknown}'")
+
+
 @dataclass
 class DeploymentPointer:
     prefix: str
     name: str
-    secret_arn: SecretArn
+    pointer: Pointer
 
     @classmethod
     def _from_parameter(
-        cls, parameter: dict[str, Any], prefix: str = ""
+        cls,
+        parameter: dict[str, Any],
+        prefix: str = "",
     ) -> DeploymentPointer:
         name = parameter["Name"][len(prefix) :]
         return cls(
             name=name,
-            secret_arn=SecretArn.from_string(parameter["Value"]),
+            pointer=Pointer.from_string(parameter["Value"]),
             prefix=prefix,
         )
 
@@ -121,4 +163,4 @@ class DeploymentPointer:
         self,
         session: boto3.Session | None = None,
     ) -> dict[str, Any]:
-        return json.loads(self.secret_arn.fetch(session=session))
+        return json.loads(self.pointer.resolve().fetch(session=session))
