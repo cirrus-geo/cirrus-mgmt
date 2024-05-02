@@ -1,0 +1,9 @@
+-c requirements.txt
+darglint
+pytest
+pytest-cov
+moto
+mypy
+pip-tools
+pre-commit
+pre-commit-hooks
