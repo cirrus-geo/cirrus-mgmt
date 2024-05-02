@@ -32,14 +32,12 @@ class PointerObject(Protocol):  # pragma: no cover
     region: str
 
     @classmethod
-    def from_string(cls: type[Self], string: str) -> Self:
-        ...
+    def from_string(cls: type[Self], string: str) -> Self: ...
 
     def fetch(
         self: Self,
         session: boto3.Session | None = None,
-    ) -> str:
-        ...
+    ) -> str: ...
 
 
 class SecretArn:
@@ -98,7 +96,7 @@ class Pointer:
     @classmethod
     def from_string(cls: type[Self], string: str) -> Self:
         obj = json.loads(string)
-        obj['_type'] = obj.pop('type')
+        obj["_type"] = obj.pop("type")
         return cls(**obj)
 
     def resolve(self) -> PointerObject:

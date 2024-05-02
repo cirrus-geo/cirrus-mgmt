@@ -1,14 +1,13 @@
 import json
 import logging
 import sys
+
 from functools import wraps
 from subprocess import CalledProcessError
-from typing import Optional
 
 import boto3
 import botocore.exceptions
 import click
-from click_option_group import RequiredMutuallyExclusiveOptionGroup, optgroup
 
 from cirrus.management.deployment import WORKFLOW_POLL_INTERVAL, Deployment
 from cirrus.management.utils.click import (
@@ -17,6 +16,7 @@ from cirrus.management.utils.click import (
     pass_session,
     silence_templating_errors,
 )
+from click_option_group import RequiredMutuallyExclusiveOptionGroup, optgroup
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ def execution_arn(func):
         cls=RequiredMutuallyExclusiveOptionGroup,
         help="Identifer type and value to get execution",
     )(func)
-    return func
+    return func  # noqa: RET504
 
 
 def raw_option(func):
@@ -79,7 +79,7 @@ def include_user_vars(func):
 )
 @pass_session
 @click.pass_context
-def manage(ctx, session: boto3.Session, deployment: str, profile: Optional[str] = None):
+def manage(ctx, session: boto3.Session, deployment: str, profile: str | None = None):
     """
     Commands to run management operations against a cirrus deployment.
     """
@@ -152,7 +152,7 @@ def get_payload(deployment, payload_id, raw):
             json.dump(json.load(b), sys.stdout, indent=4)
 
     # ensure we end with a newline
-    print()
+    click.echo("")
 
 
 @manage.command("get-execution")
@@ -188,7 +188,8 @@ def get_execution_input(deployment, arn, payload_id, raw):
 @raw_option
 @pass_deployment
 def get_execution_output(deployment, arn, payload_id, raw):
-    """Get a workflow execution's output payload using its ARN or its input payload ID"""
+    """Get a workflow execution's output payload using its ARN or its input
+    payload ID"""
     output = json.loads(_get_execution(deployment, arn, payload_id)["output"])
 
     if raw:
@@ -223,7 +224,7 @@ def process(deployment):
 def invoke_lambda(deployment, lambda_name):
     """Invoke lambda with event (from stdin)"""
     click.echo(
-        json.dumps(deployment.invoke_lambda(sys.stdin.read(), lambda_name), indent=4)
+        json.dumps(deployment.invoke_lambda(sys.stdin.read(), lambda_name), indent=4),
     )
 
 
@@ -283,7 +284,8 @@ def _exec(ctx, deployment, command, include_user_vars):
 @pass_deployment
 @click.pass_context
 def _call(ctx, deployment, command, include_user_vars):
-    """Run an executable, in a new process, with the deployment environment vars loaded"""
+    """Run an executable, in a new process, with the deployment environment
+    vars loaded"""
     if not command:
         return
     try:
@@ -299,8 +301,10 @@ def list_lambdas(ctx, deployment):
     """List lambda functions"""
     click.echo(
         json.dumps(
-            {"Functions": deployment.get_lambda_functions()}, indent=4, default=str
-        )
+            {"Functions": deployment.get_lambda_functions()},
+            indent=4,
+            default=str,
+        ),
     )
 
 

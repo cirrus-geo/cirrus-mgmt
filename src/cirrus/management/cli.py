@@ -1,6 +1,8 @@
 import sys
+
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable
+from typing import Any
 
 import boto3
 import botocore.exceptions
@@ -13,11 +15,11 @@ from cirrus.management.utils import logging
 logger = logging.getLogger(__name__)
 
 
-from cirrus.management import DESCRIPTION, NAME  # noqa: E
-from cirrus.management.commands.deployments import list_deployments  # noqa: E
-from cirrus.management.commands.manage import manage as manage_group  # noqa: E
-from cirrus.management.commands.payload import payload as payload_group  # noqa: E
-from cirrus.management.exceptions import SSOError  # noqa: E
+from cirrus.management import DESCRIPTION, NAME  # noqa: E402
+from cirrus.management.commands.deployments import list_deployments  # noqa: E402
+from cirrus.management.commands.manage import manage as manage_group  # noqa: E402
+from cirrus.management.commands.payload import payload as payload_group  # noqa: E402
+from cirrus.management.exceptions import SSOError  # noqa: E402
 
 
 def handle_sso_error(func: Callable) -> Callable:

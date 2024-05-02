@@ -3,7 +3,7 @@ import pytest
 DEPLYOMENT_NAME = "test-deployment"
 
 
-@pytest.fixture
+@pytest.fixture()
 def deployments(invoke):
     def _deployments(cmd):
         return invoke("deployments " + cmd)

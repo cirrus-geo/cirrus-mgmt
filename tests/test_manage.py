@@ -1,10 +1,8 @@
 import json
-import os
-from copy import deepcopy
 
 import pytest
 
-from cirrus.plugins.management.deployment import (
+from cirrus.management.deployment import (
     CONFIG_VERSION,
     DEFAULT_DEPLOYMENTS_DIR_NAME,
     Deployment,
@@ -14,7 +12,7 @@ DEPLYOMENT_NAME = "test-deployment"
 STACK_NAME = "cirrus-test"
 
 
-@pytest.fixture
+@pytest.fixture()
 def manage(invoke):
     def _manage(cmd):
         return invoke("manage " + cmd)
@@ -22,7 +20,7 @@ def manage(invoke):
     return _manage
 
 
-@pytest.fixture
+@pytest.fixture()
 def deployment_meta(queue, statedb, payloads, data, workflow):
     return {
         "name": DEPLYOMENT_NAME,
@@ -33,22 +31,21 @@ def deployment_meta(queue, statedb, payloads, data, workflow):
         "environment": {
             "CIRRUS_STATE_DB": statedb.table_name,
             "CIRRUS_BASE_WORKFLOW_ARN": workflow["stateMachineArn"].replace(
-                "workflow1", ""
+                "workflow1",
+                "",
             ),
             "CIRRUS_LOG_LEVEL": "DEBUG",
             "CIRRUS_STACK": STACK_NAME,
             "CIRRUS_DATA_BUCKET": data,
             "CIRRUS_PAYLOAD_BUCKET": payloads,
             "CIRRUS_PROCESS_QUEUE_URL": queue["QueueUrl"],
-            # "CIRRUS_INVALID_TOPIC_ARN": ,
-            # "CIRRUS_FAILED_TOPIC_ARN": ,
         },
         "user_vars": {},
         "config_version": CONFIG_VERSION,
     }
 
 
-@pytest.fixture
+@pytest.fixture()
 def deployment(manage, project, deployment_meta):
     def _manage(deployment, cmd):
         return manage(f"{deployment.name} {cmd}")
@@ -89,8 +86,9 @@ def test_manage_get_path(deployment, project):
     assert result.exit_code == 0
     assert result.stdout.strip() == str(
         project.dot_dir.joinpath(
-            DEFAULT_DEPLOYMENTS_DIR_NAME, f"{DEPLYOMENT_NAME}.json"
-        )
+            DEFAULT_DEPLOYMENTS_DIR_NAME,
+            f"{DEPLYOMENT_NAME}.json",
+        ),
     )
 
 
@@ -101,11 +99,15 @@ def test_manage_refresh(deployment, mock_lambda_get_conf, lambda_env):
     assert new["environment"] == lambda_env
 
 
-def test_manage_get_execution_by_payload_id(deployment, basic_payloads, statedb):
-    """Adds causes two workflow executions, and confirms that the second call to
-    get_execution_by_payload_id gets a different executionArn value from the first execution.
-    """
-    current_env = deepcopy(os.environ)  # stash env
+@pytest.mark.usefixtures("_environment")
+def test_manage_get_execution_by_payload_id(
+    deployment,
+    basic_payloads,
+    statedb,
+) -> None:
+    """Adds causes two workflow executions, and confirms that the second call
+    to get_execution_by_payload_id gets a different executionArn value from the
+    first execution."""
     deployment.set_env()
     basic_payloads.process()
     pid = basic_payloads[0]["id"]
@@ -114,10 +116,15 @@ def test_manage_get_execution_by_payload_id(deployment, basic_payloads, statedb)
     basic_payloads.process()
     sfn_exe2 = deployment.get_execution_by_payload_id(pid)
     assert sfn_exe1["executionArn"] != sfn_exe2["executionArn"]
-    os.environ = current_env  # pop stash
 
 
-@pytest.mark.parametrize("command,expect_exit_zero", (("true", True), ("false", False)))
+@pytest.mark.parametrize(
+    ("command", "expect_exit_zero"),
+    [
+        ("true", True),
+        ("false", False),
+    ],
+)
 def test_call_cli_return_values(deployment, command, expect_exit_zero):
     result = deployment(f"call {command}")
     assert result.exit_code == 0 if expect_exit_zero else result.exit_code != 0

@@ -4,8 +4,9 @@ import dataclasses
 import json
 import logging
 import os
+
 from collections.abc import Iterator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from subprocess import check_call
 from time import sleep, time
@@ -13,9 +14,9 @@ from typing import IO, Any
 
 import backoff
 import boto3
+
 from cirrus.lib.process_payload import ProcessPayload
 from cirrus.lib.utils import get_client
-
 from cirrus.management import exceptions
 from cirrus.management.deployment_pointer import DeploymentPointer
 
@@ -29,7 +30,7 @@ WORKFLOW_POLL_INTERVAL = 15  # seconds between state checks
 
 
 def now_isoformat():
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _maybe_use_buffer(fileobj: IO):
@@ -55,17 +56,6 @@ class DeploymentMeta:
 
     def asjson(self, *args, **kwargs) -> str:
         return json.dumps(self.asdict(), *args, **kwargs)
-
-
-#    @staticmethod
-#    def _get_session(profile: str = None):
-#        # TODO: MFA session should likely be used only with the cli,
-#        #   so this probably needs to be parameterized by the caller
-#
-#    def get_session(self):
-#        if not self._session:
-#            self._session = self._get_session(profile=self.profile)
-#        return self._session
 
 
 @dataclasses.dataclass
@@ -132,20 +122,20 @@ class Deployment(DeploymentMeta):
             env = self.environment.copy()
             if include_user_vars:
                 env.update(self.user_vars)
-            os.execlpe(command[0], *command, env)
+            os.execlpe(command[0], *command, env)  # noqa: S606
 
         self.set_env(include_user_vars=include_user_vars)
-        os.execlp(command[0], *command)
+        os.execlp(command[0], *command)  # noqa: S606
 
     def call(self, command, include_user_vars=True, isolated=False):
         if isolated:
             env = self.environment.copy()
             if include_user_vars:
                 env.update(self.user_vars)
-            check_call(command, env=env)
+            check_call(command, env=env)  # noqa: S603
         else:
             self.set_env(include_user_vars=include_user_vars)
-            check_call(command)
+            check_call(command)  # noqa: S603
 
     def get_payload_state(self, payload_id):
         from cirrus.lib.statedb import StateDB
@@ -215,8 +205,8 @@ class Deployment(DeploymentMeta):
         execs = self.get_payload_state(payload_id).get("executions", [])
         try:
             exec_arn = execs[-1]
-        except IndexError:
-            raise exceptions.NoExecutionsError(payload_id)
+        except IndexError as e:
+            raise exceptions.NoExecutionsError(payload_id) from e
 
         return self.get_execution(exec_arn)
 
@@ -224,7 +214,7 @@ class Deployment(DeploymentMeta):
         aws_lambda = get_client("lambda", session=self.session)
         if function_name not in self.get_lambda_functions():
             raise ValueError(
-                f"lambda named '{function_name}' not found in deployment '{self.name}'"
+                f"lambda named '{function_name}' not found in deployment '{self.name}'",
             )
         full_name = f"{self.stackname}-{function_name}"
         response = aws_lambda.invoke(FunctionName=full_name, Payload=event)

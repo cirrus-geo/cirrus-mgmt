@@ -1,12 +1,14 @@
 import logging
 
+from typing import Any, ClassVar
+
 import click
 
 # Inspired from https://github.com/click-contrib/click-log
 
 
 class ClickFormatter(logging.Formatter):
-    colors = {
+    colors: ClassVar[dict[str, dict[str, Any]]] = {
         "error": {"fg": "red"},
         "exception": {"fg": "red"},
         "critical": {"fg": "red"},
@@ -28,5 +30,6 @@ class ClickHandler(logging.Handler):
             msg = self.format(record)
             record.levelname.lower()
             click.echo(msg, err=True)
-        except Exception:
+        # not sure if we can narrow this exception down or not...
+        except Exception:  # noqa: BLE001
             self.handleError(record)

@@ -62,7 +62,7 @@ class AliasedShortMatchGroup(click.Group):
                 self.resolve_alias(cmd)
                 for cmd in self.list_commands(ctx) + list(self._alias2cmd.keys())
                 if cmd.startswith(cmd_name)
-            }
+            },
         )
 
         # no matches no command
@@ -71,13 +71,14 @@ class AliasedShortMatchGroup(click.Group):
 
         # one match then we can resolve the match
         # and try getting the command again
-        elif len(matches) == 1:
+        if len(matches) == 1:
             return super().get_command(ctx, matches[0])
 
         # otherwise the string matched but was not unique
         # to a single command and we have to bail out
-        ctx.fail(
-            f"Unknown command '{cmd_name}. Did you mean any of these: {', '.join(sorted(matches))}?",
+        ctx.fail(  # noqa: RET503
+            f"Unknown command '{cmd_name}. Did you mean any of these: "
+            f"{', '.join(sorted(matches))}?",
         )
 
     def format_commands(self, ctx, formatter):
@@ -144,8 +145,6 @@ class Variable(click.ParamType):
     name = "key/val pair"
 
     def convert(self, value, param, ctx):
-        print(22, value)
-        print(33, param)
         return {value[0]: value[1]}
 
 
@@ -177,7 +176,6 @@ def additional_variables(func):
         "additional_variables",
         nargs=2,
         multiple=True,
-        # type=Variable(),
         callback=merge_vars2,
         help="Additional templating variables",
     )(func)

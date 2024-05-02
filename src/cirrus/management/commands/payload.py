@@ -47,6 +47,8 @@ def template(additional_variables, silence_templating_errors):
 
     click.echo(
         template_payload(
-            sys.stdin.read(), additional_variables, silence_templating_errors
-        )
+            sys.stdin.read(),
+            additional_variables,
+            silence_templating_errors,
+        ),
     )
