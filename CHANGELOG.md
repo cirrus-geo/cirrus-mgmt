@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - Support for `cirrus-geo>=0.15.0` with WorkflowEventManager changes around
   ProcessPayloads. ([#12])
+- Added support for Python 3.12
 
 ### Changed
 
@@ -19,6 +20,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   `cirrus-mgmt` is now pinned to use the stable releases of cirrus-geo
   (`<1.0`). As described, in that PR, the management commands for releases
   `>=1.0` will not use this separate package.
+- Updated Github Actions per nodejs16 deprecation notice in workflows.
+
+### Removed
+
+- Python support for python 3.8.
 
 ## [v0.1.1] - 2024-02-16
 
