@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Support for `cirrus-geo>=0.15.0` with WorkflowEventManager changes around
+  ProcessPayloads. ([#12])
+
 ### Changed
 
 - Given the heavy changes initiated with
@@ -46,3 +51,4 @@ Initial release
 [v0.1.1]: https://github.com/cirrus-geo/cirrus-mgmt/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/cirrus-geo/cirrus-mgmt/compare/v0.1.0a...v0.1.0
 [v0.1.0a]: https://github.com/cirrus-geo/cirrus-mgmt/releases/tag/v0.1.0a
+[#12]: https://github.com/cirrus-geo/cirrus-mgmt/pull/12

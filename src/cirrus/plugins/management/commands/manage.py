@@ -2,16 +2,13 @@ import json
 import logging
 import sys
 from functools import wraps
+from subprocess import CalledProcessError
 
 import click
 from cirrus.cli.utils import click as utils_click
 from click_option_group import RequiredMutuallyExclusiveOptionGroup, optgroup
 
-from cirrus.plugins.management.deployment import (
-    WORKFLOW_POLL_INTERVAL,
-    CalledProcessError,
-    Deployment,
-)
+from cirrus.plugins.management.deployment import WORKFLOW_POLL_INTERVAL, Deployment
 from cirrus.plugins.management.utils.click import (
     additional_variables,
     silence_templating_errors,
