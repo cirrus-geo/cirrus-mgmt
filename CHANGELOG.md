@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Support for `cirrus-geo>=0.15.0` with WorkflowEventManager changes around
+  ProcessPayloads. ([#12])
+- Added support for Python 3.12
+
+### Changed
+
+- Given the heavy changes initiated with
+  [cirrus-geo#268](https://github.com/cirrus-geo/cirrus-geo/pull/268),
+  `cirrus-mgmt` is now pinned to use the stable releases of cirrus-geo
+  (`<1.0`). As described, in that PR, the management commands for releases
+  `>=1.0` will not use this separate package.
+- Updated Github Actions per nodejs16 deprecation notice in workflows.
+
+### Removed
+
+- Python support for python 3.8.
+
 ## [v0.1.1] - 2024-02-16
 
 ### Fixed
@@ -36,3 +57,4 @@ Initial release
 [v0.1.1]: https://github.com/cirrus-geo/cirrus-mgmt/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/cirrus-geo/cirrus-mgmt/compare/v0.1.0a...v0.1.0
 [v0.1.0a]: https://github.com/cirrus-geo/cirrus-mgmt/releases/tag/v0.1.0a
+[#12]: https://github.com/cirrus-geo/cirrus-mgmt/pull/12

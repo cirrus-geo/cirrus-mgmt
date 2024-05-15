@@ -229,11 +229,17 @@ def invoke(cli_runner):
 
 
 @pytest.fixture
-def basic_payloads(fixtures):
-    return ProcessPayloads(
-        process_payloads=[
-            ProcessPayload(
-                json.loads(fixtures.joinpath("basic_payload.json").read_text())
-            )
-        ]
-    )
+def basic_payloads(fixtures, statedb):
+    payload_list = [
+        ProcessPayload(json.loads(fixtures.joinpath("basic_payload.json").read_text()))
+    ]
+    try:
+        # cirrus-geo >= 0.15.0
+        payloads = ProcessPayloads(process_payloads=payload_list, statedb=statedb)
+    except TypeError as te:
+        # cirrus-geo < 0.15.0
+        if "unexpected keyword argument 'statedb'" in te.args[0]:
+            payloads = ProcessPayloads(process_payloads=payload_list)
+        else:
+            raise
+    return payloads

@@ -107,11 +107,18 @@ def test_manage_get_execution_by_payload_id(deployment, basic_payloads, statedb)
     """
     current_env = deepcopy(os.environ)  # stash env
     deployment.set_env()
-    basic_payloads.process()
+
+    ############
+    # Handle cirrus-geo before WorkflowEventManager (0.15.0)
+    wfem = deployment.workflow_event_manager()
+    proc_args = [] if wfem is None else [wfem]
+    ############
+
+    basic_payloads.process(*proc_args)
     pid = basic_payloads[0]["id"]
     sfn_exe1 = deployment.get_execution_by_payload_id(pid)
     statedb.set_aborted(pid, execution_arn=sfn_exe1["executionArn"])
-    basic_payloads.process()
+    basic_payloads.process(*proc_args)
     sfn_exe2 = deployment.get_execution_by_payload_id(pid)
     assert sfn_exe1["executionArn"] != sfn_exe2["executionArn"]
     os.environ = current_env  # pop stash

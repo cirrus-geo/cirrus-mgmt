@@ -4,7 +4,7 @@ import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from subprocess import CalledProcessError, check_call
+from subprocess import check_call
 from time import sleep, time
 
 import backoff
@@ -320,6 +320,16 @@ class Deployment(DeploymentMeta):
             raise RuntimeError(response)
 
         return json.load(response["Payload"])
+
+    def workflow_event_manager(self):
+        wfem = None
+        try:
+            from cirrus.lib2.events import WorkflowEventManager
+
+            wfem = WorkflowEventManager()
+        except ImportError:
+            pass
+        return wfem
 
     def run_workflow(
         self,
